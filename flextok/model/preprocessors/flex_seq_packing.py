@@ -70,7 +70,7 @@ def generate_prefix_packed_seq_mask(
     # Get unique sequence IDs and their counts
     _, counts = torch.unique_consecutive(seq_ids, return_counts=True)
     # Create cumulative counts (offsets)
-    offsets = torch.cat([torch.tensor([0], device=seq_ids.device), counts.cumsum(0)[:-1]])
+    offsets = torch.cat([torch.tensor([0], device=device), counts.cumsum(0)[:-1]])
     # Convert prefix_lens tuple to tensor. Needs to be predictably hashable.
     prefix_lens = torch.tensor(prefix_lens, device=device)
 
@@ -242,7 +242,7 @@ class BlockWiseSequencePacker(nn.Module):
         # Only supporting B=1 until https://github.com/pytorch/pytorch/issues/134560 is resolved
         assert B == 1
 
-        device = tensors_packed.device
+        device = str(tensors_packed.device)
 
         # Create full or causal block-wise self-attention mask using FlexAttention. Optionally pad sequences.
         if self.pad_to_multiple is not None:
