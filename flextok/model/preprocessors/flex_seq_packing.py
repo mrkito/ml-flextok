@@ -9,7 +9,7 @@ import einops
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.attention.flex_attention import create_block_mask
+from torch.nn.attention.flex_attention import create_block_mask, create_mask
 
 __all__ = ["BlockWiseSequencePacker"]
 
@@ -175,6 +175,7 @@ class BlockWiseSequencePacker(nn.Module):
             Useful for applying different embeddings to each subsequence, e.g. for AdaLN applied differently
             to image patches and registers.
         compile_block_mask: Whether or not to compile FlexAttention's create_block_mask.
+        return_materialized_mask: If True, returns the materialized mask instead of the block mask.
     """
 
     def __init__(
@@ -190,6 +191,7 @@ class BlockWiseSequencePacker(nn.Module):
         emb_packing_fn_write_key: Optional[str] = None,
         per_subseq_embs: bool = False,
         compile_block_mask: bool = True,
+        return_materialized_mask: bool = False,
     ):
         super().__init__()
         self.input_list_read_keys = input_list_read_keys
@@ -208,6 +210,7 @@ class BlockWiseSequencePacker(nn.Module):
 
         self.compile_block_mask = compile_block_mask
         self.create_block_mask = torch.compiler.disable(create_block_mask_cached)
+        self.return_materialized_mask = return_materialized_mask
 
         # For pretty printing
         self._init_args = locals().copy()
@@ -278,9 +281,12 @@ class BlockWiseSequencePacker(nn.Module):
         assert (
             N % 128 == 0
         ), f"flex_attention sequence length must be a multiple of 128, but current is {N}."
-        block_mask = self.create_block_mask(
-            mask_fn, None, None, N, N, device=device, _compile=self.compile_block_mask
-        )
+        if self.return_materialized_mask:
+            block_mask = create_mask(mask_fn, None, None, N, N, device=device)
+        else:
+            block_mask = self.create_block_mask(
+                mask_fn, None, None, N, N, device=device, _compile=self.compile_block_mask
+            )
 
         # Optionally zero-pad packed sequence
         # Outer packed shapes can be used to remove padding

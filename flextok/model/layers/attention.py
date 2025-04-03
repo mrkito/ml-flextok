@@ -6,6 +6,7 @@ import einops
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.attention.flex_attention import flex_attention
 
 from .norm import Fp32LayerNorm
@@ -25,6 +26,7 @@ class FlexAttention(nn.Module):
         qk_norm: Whether to apply QK normalization.
         muP_scale: Whether to use μP-compatible attention scaling.
         norm_layer: Normalization layer when using QK-norm.
+        use_flex_attention: Set to False to fall back to standard SDPA.
     """
 
     def __init__(
@@ -37,6 +39,7 @@ class FlexAttention(nn.Module):
         qk_norm=True,
         muP_scale=True,
         norm_layer=partial(Fp32LayerNorm, bias=False, elementwise_affine=False),
+        use_flex_attention=True,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -57,8 +60,10 @@ class FlexAttention(nn.Module):
         # μP compatible scaling. Equals standard 1.0 / head_dim ** 0.5 for commonly used head_dim=64.
         self.scale = 8.0 / self.head_dim if muP_scale else None
 
-        # Should always be compiled
-        self.flex_attention = torch.compile(flex_attention, dynamic=False)
+        self.use_flex_attention = use_flex_attention
+        if use_flex_attention:
+            # If used, should always be compiled
+            self.flex_attention = torch.compile(flex_attention, dynamic=False)
 
     def forward(self, xq, xk, xv, score_mod=None, block_mask=None, rope_forward=None):
         """Forward pass of the FlexAttention module.
@@ -91,10 +96,16 @@ class FlexAttention(nn.Module):
         if rope_forward is not None:
             q, k, v = rope_forward(q, k, v)
 
-        # Run FlexAttention with score_mod and/or block_mask
-        x = self.flex_attention(
-            q, k, v, score_mod=score_mod, block_mask=block_mask, scale=self.scale
-        )
+        if self.use_flex_attention:
+            # Run FlexAttention with score_mod and/or block_mask
+            x = self.flex_attention(
+                q, k, v, score_mod=score_mod, block_mask=block_mask, scale=self.scale
+            )
+        else:
+            # When falling back to SDPA, we use block_mask as the attention mask
+            x = F.scaled_dot_product_attention(
+                q, k, v, attn_mask=block_mask, scale=self.scale
+            )
 
         # Combine heads back to [batch_size, sequence_length, num_heads*head_dim]
         x = einops.rearrange(x, "b h n d -> b n (h d)")
