@@ -1,6 +1,5 @@
 # For licensing see accompanying LICENSE file.
 # Copyright (C) 2025 Apple Inc. and EPFL. All Rights Reserved.
-import ast
 import io
 import json
 import os
@@ -28,17 +27,6 @@ def save_safetensors(state_dict, ckpt_path, metadata_dict=None):
     save_file(state_dict, ckpt_path, metadata=metadata)
 
 
-def parse_metadata(metadata_str):
-    metadata = {}
-    for k, v in metadata_str.items():
-        try:
-            v_parsed = ast.literal_eval(v)
-        except:
-            v_parsed = v
-        metadata[k] = v_parsed
-    return metadata
-
-
 def load_safetensors(safetensors_path, return_metadata=True):
     with open(safetensors_path, "rb") as f:
         data = f.read()
@@ -53,7 +41,6 @@ def load_safetensors(safetensors_path, return_metadata=True):
     metadata_bytes = data[8 : 8 + n]
     header = json.loads(metadata_bytes)
     metadata = header.get("__metadata__", {})
-    metadata = parse_metadata(metadata)
 
     return tensors, metadata
 
