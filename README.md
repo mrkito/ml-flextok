@@ -60,7 +60,9 @@ Please see the [Model Zoo](#model-zoo) for all available FlexTok and VAE models,
 
 
 ## Model Zoo
-We provide FlexTok and VAE checkpoints as [safetensors](https://huggingface.co/docs/safetensors/en/index), and also offer easy loading via [Hugging Face Hub](https://huggingface.co/docs/hub/index).
+We provide FlexTok and VAE checkpoints as [safetensors](https://huggingface.co/docs/safetensors/en/index), and also offer easy loading via [Hugging Face Hub](https://huggingface.co/docs/hub/index). 
+
+Note that we instantiate the models from configs stored in the safetensors' metadata using `hydra.utils.instantiate`, which may be vulnerable to arbitrary code execution. While we take steps to sanitize the loaded metadata before passing it to `hydra.utils.instantiate`, we recommend only using FlexTok checkpoints from trusted sources and inspecting the metadata manually when loading unofficial checkpoints.
 
 ### FlexTok tokenizers
 

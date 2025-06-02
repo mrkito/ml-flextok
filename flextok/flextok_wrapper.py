@@ -12,6 +12,7 @@ import torch.nn as nn
 from hydra.utils import instantiate
 
 from .model.utils.packed_ops import packed_call
+from .utils.checkpoint import _sanitize_hydra_config
 
 
 class FlexTok(nn.Module):
@@ -259,6 +260,8 @@ class FlexTokFromHub(FlexTok, PyTorchModelHubMixin):
     def __init__(self, config: dict):
 
         config = copy.deepcopy(config)
+        # Sanitize config before handing it off to hydra.utils.instantiate()
+        _sanitize_hydra_config(config)
 
         super().__init__(
             vae=instantiate(config["vae"]),
